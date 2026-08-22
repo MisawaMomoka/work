@@ -1,4 +1,6 @@
 from datetime import date, time
+
+import pytest
 from zoneinfo import ZoneInfo
 
 from secretary.sources.calendar_ics import events_for_day, find_free_slots
@@ -83,3 +85,104 @@ def test_all_day_event_does_not_block_free_time():
     events = events_for_day(ics(ALL_DAY), date(2026, 8, 20), TZ)
     slots = find_free_slots(events, date(2026, 8, 20), TZ, time(9, 0), time(18, 0), 45)
     assert len(slots) == 1 and slots[0].minutes == 540
+
+
+# ---------------------------------------------------------------- 取得時のエラー
+def test_html_page_gives_a_useful_error(tmp_path):
+    """公開URLや設定ページのURLを貼ってしまう間違いを、その場で指摘する。"""
+    from secretary.sources.calendar_ics import CalendarError, fetch_ics
+
+    page = tmp_path / "page.html"
+    page.write_text("<!DOCTYPE html><html><body>Google Calendar</body></html>", encoding="utf-8")
+
+    with pytest.raises(CalendarError, match="basic.ics|iCal形式"):
+        fetch_ics(str(page))
+
+
+def test_non_calendar_text_is_rejected(tmp_path):
+    from secretary.sources.calendar_ics import CalendarError, fetch_ics
+
+    junk = tmp_path / "junk.txt"
+    junk.write_text("これはカレンダーではありません", encoding="utf-8")
+
+    with pytest.raises(CalendarError, match="カレンダーとして読めませんでした"):
+        fetch_ics(str(junk))
+
+
+def test_missing_local_file_is_reported(tmp_path):
+    from secretary.sources.calendar_ics import CalendarError, fetch_ics
+
+    with pytest.raises(CalendarError, match="見つかりません"):
+        fetch_ics(str(tmp_path / "nope.ics"))
+
+
+def test_valid_ics_file_passes_validation(tmp_path):
+    from secretary.sources.calendar_ics import fetch_ics
+
+    path = tmp_path / "ok.ics"
+    path.write_text(ics(TIMED), encoding="utf-8")
+    assert "BEGIN:VCALENDAR" in fetch_ics(str(path))
+
+
+def test_http_404_suggests_recopying_the_url(monkeypatch):
+    import requests
+
+    from secretary.sources.calendar_ics import CalendarError, fetch_ics
+
+    class Resp:
+        status_code = 404
+        text = "Not Found"
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: Resp())
+    with pytest.raises(CalendarError) as exc:
+        fetch_ics("https://example.com/missing.ics")
+    assert "404" in str(exc.value)
+    assert "非公開URL" in str(exc.value)
+
+
+def test_connection_failure_is_wrapped(monkeypatch):
+    import requests
+
+    from secretary.sources.calendar_ics import CalendarError, fetch_ics
+
+    def boom(*a, **k):
+        raise requests.ConnectionError("dns failure")
+
+    monkeypatch.setattr(requests, "get", boom)
+    with pytest.raises(CalendarError, match="接続できませんでした"):
+        fetch_ics("https://example.com/a.ics")
+
+
+def test_collect_events_survives_one_broken_feed(tmp_path):
+    """1本壊れていても、他のカレンダーと通知自体は生き残ること。"""
+    from secretary.sources.calendar_ics import collect_events
+
+    good = tmp_path / "good.ics"
+    good.write_text(ics(TIMED), encoding="utf-8")
+
+    events, warnings = collect_events(
+        [str(good), str(tmp_path / "missing.ics")], date(2026, 8, 20), TZ
+    )
+    assert [e.summary for e in events] == ["定例ミーティング"]
+    assert len(warnings) == 1
+
+
+def test_webcal_scheme_is_converted(monkeypatch):
+    """iCloud の webcal:// をそのまま貼っても動くこと。"""
+    import requests
+
+    from secretary.sources.calendar_ics import fetch_ics
+
+    seen = {}
+
+    class Resp:
+        status_code = 200
+        text = ics(TIMED)
+
+    def fake_get(url, **kwargs):
+        seen["url"] = url
+        return Resp()
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    fetch_ics("webcal://example.com/cal.ics")
+    assert seen["url"] == "https://example.com/cal.ics"

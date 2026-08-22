@@ -106,17 +106,31 @@ python3 -m secretary brief --dry-run --no-ai
 Googleカレンダーの場合:
 
 1. カレンダー左のリストで対象カレンダーの「⋮」→ **設定と共有**
-2. 一番下の **カレンダーの統合** → **カレンダーの非公開URL（iCal形式）** をコピー
-3. 環境変数 `CALENDAR_ICS_URL` に設定
+2. **カレンダーの統合** → **カレンダーの非公開URL（iCal形式）** をコピー
+   （末尾が `/basic.ics` のもの。公開URLや埋め込みコードでは読めません）
+3. 環境変数 `CALENDAR_ICS_URL` に設定する
 
-> このURLを知っている人は予定を全部見られます。**必ず Secrets / `.env` に入れて、コミットしないでください。**
-> 複数のカレンダーを見たいときは `config.yaml` の `calendar.ics_urls` に足していけます。
+```powershell
+# Windows (PowerShell)
+$env:CALENDAR_ICS_URL = "コピーしたURL"                 # このウィンドウだけ
+[Environment]::SetEnvironmentVariable("CALENDAR_ICS_URL", "コピーしたURL", "User")  # 次回以降も
+```
 
 ```bash
-cp .env.example .env      # 値を書き込む
-set -a; source .env; set +a
-python -m secretary doctor    # つながったか確認
+# macOS / Linux
+export CALENDAR_ICS_URL="コピーしたURL"
 ```
+
+つながったか確認します。
+
+```bash
+python -m secretary calendar-test
+```
+
+> このURLを知っている人は予定を全部見られます。**必ず環境変数 / Secrets に入れて、コミットしないでください。**
+> 複数のカレンダーを見たいときは `config.yaml` の `calendar.ics_urls` に足していけます。
+
+**→ 画面の場所や詰まりどころまで含めた詳細手順は [docs/calendar-setup.md](docs/calendar-setup.md)**
 
 ### 2. 通知先を決める
 
@@ -238,6 +252,7 @@ python -m secretary task list
 python -m secretary task add "請求書を送る" --due 2026-09-01 --priority high
 python -m secretary task done 3
 
+python -m secretary calendar-test         # カレンダー接続の確認
 python -m secretary line-test             # LINEの設定確認（--send でテスト送信）
 python -m secretary doctor                # 設定の健康診断
 ```
@@ -280,7 +295,11 @@ secretary/
   notify/
     line.py  slack.py  discord.py  email.py  console.py
 docs/
+  calendar-setup.md    カレンダーをつなぐまでの詳細手順
   line-setup.md        LINEで受け取るまでの詳細手順
+scripts/
+  Load-Env.ps1         .env を読み込む（PowerShell用）
+  load-env.sh          .env を読み込む（bash用）
 ```
 
 設計上こだわった点:
@@ -308,7 +327,8 @@ pip install pytest && python -m pytest -q
 | `No such file or directory: 'requirements.txt'` | リポジトリのフォルダの外にいます。`cd ai-secretary` してから実行 |
 | `No module named secretary` | 同上。`ls` で `secretary` フォルダが見えるところに移動する |
 | `ZoneInfoNotFoundError` / タイムゾーンのエラー | `python -m pip install tzdata`（Windowsのみ必要） |
-| 予定が空のまま | `python -m secretary doctor`。ICS URLが「非公開URL(iCal形式)」か確認 |
+| 予定が空のまま | `python -m secretary calendar-test` で切り分け。詳細は [docs/calendar-setup.md](docs/calendar-setup.md#うまくいかないとき) |
+| PowerShellを閉じたら設定が消えた | `$env:` はそのウィンドウ限り。`[Environment]::SetEnvironmentVariable(...,"User")` か `.\scripts\Load-Env.ps1 -Persist` を使う |
 | 通知が来ない | `config.yaml` の `notify.*.enabled` が `true` か。GitHub Secretsの名前が合っているか |
 | LINEに届かない | `python -m secretary line-test` で切り分け。詳細は [docs/line-setup.md](docs/line-setup.md#うまくいかないとき) |
 | 時間がずれる | cronは**UTC**。JSTから9時間引いた値を書く |

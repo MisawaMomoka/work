@@ -21,16 +21,55 @@ logger = logging.getLogger(__name__)
 
 FETCH_TIMEOUT = 30
 
+# 貼り間違いが多いので、症状ごとに直し方を返す
+STATUS_HINTS = {
+    404: "URLが違います。Googleカレンダー →「設定と共有」→「カレンダーの統合」→"
+         "「カレンダーの非公開URL（iCal形式）」をコピーし直してください。",
+    401: "URLに認証が必要です。非公開URL（iCal形式）をそのまま使ってください。",
+    403: "アクセスを拒否されました。カレンダーの共有設定を確認してください。",
+}
+
+
+class CalendarError(RuntimeError):
+    pass
+
 
 def fetch_ics(url: str) -> str:
     """URL または ローカルパスから ICS 本文を取得する。"""
-    if url.startswith(("http://", "https://")):
-        response = requests.get(url, timeout=FETCH_TIMEOUT)
-        response.raise_for_status()
-        return response.text
     if url.startswith("webcal://"):
         return fetch_ics("https://" + url[len("webcal://"):])
-    return Path(url).read_text(encoding="utf-8")
+
+    if not url.startswith(("http://", "https://")):
+        path = Path(url)
+        if not path.is_file():
+            raise CalendarError(f"ファイルが見つかりません: {url}")
+        return _validate_ics(path.read_text(encoding="utf-8"), url)
+
+    try:
+        response = requests.get(url, timeout=FETCH_TIMEOUT)
+    except requests.RequestException as exc:
+        raise CalendarError(f"接続できませんでした: {type(exc).__name__}") from exc
+
+    if response.status_code >= 400:
+        hint = STATUS_HINTS.get(response.status_code)
+        raise CalendarError(
+            f"HTTP {response.status_code} が返りました" + (f"\n  → {hint}" if hint else "")
+        )
+    return _validate_ics(response.text, url)
+
+
+def _validate_ics(text: str, url: str) -> str:
+    """カレンダー本文でなければ、その場で原因を伝える。"""
+    if "BEGIN:VCALENDAR" in text[:2000]:
+        return text
+    looks_like_html = text.lstrip()[:200].lower().startswith(("<!doctype", "<html"))
+    hint = (
+        "設定ページのURLや共有用のURLを貼っている可能性があります。"
+        "末尾が .ics のURL（カレンダーの非公開URL（iCal形式））を使ってください。"
+        if looks_like_html
+        else "このURLはカレンダー形式（iCal）ではないようです。"
+    )
+    raise CalendarError(f"カレンダーとして読めませんでした\n  → {hint}")
 
 
 def _as_aware(value, tz: ZoneInfo) -> datetime:

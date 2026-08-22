@@ -7,6 +7,7 @@
     python -m secretary task list
     python -m secretary task add "請求書を送る" --due 2026-08-25 --priority high
     python -m secretary task done 3
+    python -m secretary calendar-test      # カレンダー接続を確認
     python -m secretary line-test          # LINEの設定を確認 / テスト送信
     python -m secretary doctor             # 設定の健康診断
 """
@@ -16,13 +17,13 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from . import brief as brief_module
 from . import notify
 from .config import Config, ConfigError, load_config
 from .models import Task
-from .pipeline import build_briefing, today_in
+from .pipeline import WEEKDAY_JA, build_briefing, today_in
 from .sources import money as money_source
 from .sources import tasks as tasks_source
 
@@ -51,6 +52,16 @@ def _configure_logging(verbose: bool) -> None:
 
 def _load(args) -> Config:
     return load_config(args.config)
+
+
+def _mask_url(url: str) -> str:
+    """ログや画面に出すとき、非公開URLの秘密部分を伏せる。"""
+    if not url.startswith(("http://", "https://")):
+        return url
+    head, _, tail = url.rpartition("/")
+    if len(head) > 60:
+        head = head[:40] + "…" + head[-12:]
+    return f"{head}/{tail}" if len(tail) < 30 else f"{head}/…{tail[-12:]}"
 
 
 def _tasks_path(config: Config) -> str:
@@ -166,6 +177,61 @@ def cmd_task(args) -> int:
         return 0
 
     return 2
+
+
+# ------------------------------------------------------------------ calendar-test
+def cmd_calendar_test(args) -> int:
+    """カレンダーが正しくつながっているか、実際に取得して中身を見せる。"""
+    from icalendar import Calendar
+
+    from .sources.calendar_ics import events_for_day, fetch_ics
+
+    config = _load(args)
+    tz = config.tz
+    today = today_in(config)
+    urls = [u for u in (config.calendar.get("ics_urls") or []) if u]
+
+    if not urls:
+        print("✗ カレンダーのURLが設定されていません。", file=sys.stderr)
+        print("  環境変数 CALENDAR_ICS_URL を設定してください。", file=sys.stderr)
+        print("  手順: docs/calendar-setup.md", file=sys.stderr)
+        return 1
+
+    failures = 0
+    for number, url in enumerate(urls, start=1):
+        print(f"カレンダー{number}: {_mask_url(url)}")
+        try:
+            text = fetch_ics(url)
+        except Exception as exc:
+            failures += 1
+            print(f"  ✗ 取得できませんでした\n  {exc}\n")
+            continue
+
+        calendar = Calendar.from_ical(text)
+        name = str(calendar.get("X-WR-CALNAME") or "(名前なし)")
+        defined = len(list(calendar.walk("VEVENT")))
+        print(f"  ✓ 取得OK  カレンダー名: {name}")
+        print(f"    登録されている予定: {defined}件（繰り返しは1件として数えます）")
+
+        todays = events_for_day(text, today, tz)
+        print(f"\n  今日（{today.month}月{today.day}日）の予定: {len(todays)}件")
+        for event in todays:
+            place = f"  @{event.location}" if event.location else ""
+            print(f"    ・{event.time_label}  {event.summary}{place}")
+
+        print("\n  この先7日間:")
+        for offset in range(1, 8):
+            day = today + timedelta(days=offset)
+            count = len(events_for_day(text, day, tz))
+            bar = "■" * min(count, 10) if count else "—"
+            print(f"    {day.month}/{day.day}({WEEKDAY_JA[day.weekday()]})  {bar} {count}件")
+        print()
+
+    if failures:
+        print(f"{failures}件のカレンダーが読めませんでした。", file=sys.stderr)
+        return 1
+    print("カレンダー接続は正常です。次: python -m secretary brief --dry-run --no-ai")
+    return 0
 
 
 # ------------------------------------------------------------------ line-test
@@ -296,6 +362,10 @@ def build_parser() -> argparse.ArgumentParser:
     t_done = task_sub.add_parser("done", help="完了にする")
     t_done.add_argument("index", type=int)
     p_task.set_defaults(func=cmd_task)
+
+    sub.add_parser("calendar-test", help="カレンダー接続を確認する").set_defaults(
+        func=cmd_calendar_test
+    )
 
     p_line = sub.add_parser("line-test", help="LINEの設定を確認し、任意でテスト送信する")
     p_line.add_argument("--send", action="store_true", help="実際に1通送ってみる")

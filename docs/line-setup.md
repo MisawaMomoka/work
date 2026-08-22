@@ -73,13 +73,29 @@ Messaging APIの利用を有効にすると、対応するチャネルが自動�
 
 ## ⑤ 手元で動作確認する
 
-```bash
-# .env に値を入れる
-cp .env.example .env
-#   LINE_CHANNEL_ACCESS_TOKEN=（②でコピーした文字列）
-#   LINE_USER_ID=              （空のままでOK。理由は後述）
+```powershell
+# Windows (PowerShell)
+$env:LINE_CHANNEL_ACCESS_TOKEN = "②でコピーした文字列"
+# LINE_USER_ID は空のままでOK（理由は後述）
 
-set -a; source .env; set +a
+# 次回以降も使うなら
+[Environment]::SetEnvironmentVariable("LINE_CHANNEL_ACCESS_TOKEN", "②の文字列", "User")
+```
+
+```bash
+# macOS / Linux
+export LINE_CHANNEL_ACCESS_TOKEN="②でコピーした文字列"
+```
+
+設定する値が増えてきたら、`.env` にまとめて書いて読み込めます。
+
+```powershell
+Copy-Item .env.example .env   # 値を書き込んで保存
+.\scripts\Load-Env.ps1        # PowerShell（-Persist で次回以降も）
+```
+```bash
+cp .env.example .env
+source scripts/load-env.sh    # macOS / Linux
 ```
 
 `config.yaml` の LINE をオンにします。
