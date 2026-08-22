@@ -7,6 +7,7 @@
     python -m secretary task list
     python -m secretary task add "請求書を送る" --due 2026-08-25 --priority high
     python -m secretary task done 3
+    python -m secretary import kakeibo.csv --dry-run  # 他アプリのCSVを取り込む
     python -m secretary calendar-test      # カレンダー接続を確認
     python -m secretary line-test          # LINEの設定を確認 / テスト送信
     python -m secretary doctor             # 設定の健康診断
@@ -189,6 +190,49 @@ def cmd_task(args) -> int:
         return 0
 
     return 2
+
+
+# ------------------------------------------------------------------ import
+def cmd_import(args) -> int:
+    """OsidOri などの家計簿アプリが書き出したCSVを取り込む。"""
+    from .sources import importers
+
+    config = _load(args)
+    expenses_file = config.money.get("expenses_file") or "data/expenses.csv"
+    currency = config.money.get("currency") or "円"
+
+    overrides = {
+        "date": args.date_col,
+        "amount": args.amount_col,
+        "category": args.category_col,
+        "memo": args.memo_col,
+    }
+
+    try:
+        plan = importers.build_plan(
+            args.file,
+            existing=money_source.load_expenses(expenses_file),
+            overrides=overrides,
+            include_transfers=args.include_transfers,
+        )
+    except importers.ImportError_ as exc:
+        print(f"取り込めませんでした:\n{exc}", file=sys.stderr)
+        return 1
+
+    print(importers.describe(plan, currency))
+
+    if not plan.expenses:
+        print("\n取り込む行がありませんでした。上の「列の対応」が正しいか確認してください。")
+        return 1
+
+    if args.dry_run:
+        print(f"\n確認だけで終了しました。実際に取り込むには --dry-run を外してください。")
+        return 0
+
+    added = importers.apply_plan(plan, expenses_file)
+    print(f"\n✓ {added}件を {expenses_file} に追加しました。")
+    print("  確認: python -m secretary money")
+    return 0
 
 
 # ------------------------------------------------------------------ calendar-test
@@ -374,6 +418,19 @@ def build_parser() -> argparse.ArgumentParser:
     t_done = task_sub.add_parser("done", help="完了にする")
     t_done.add_argument("index", type=int)
     p_task.set_defaults(func=cmd_task)
+
+    p_import = sub.add_parser(
+        "import", help="他の家計簿アプリのCSVを取り込む（OsidOri / Zaim / MF など）"
+    )
+    p_import.add_argument("file", help="取り込むCSVファイル")
+    p_import.add_argument("--dry-run", action="store_true", help="書き込まず、解釈結果だけ見る")
+    p_import.add_argument("--include-transfers", action="store_true",
+                          help="振替・振込も支出として取り込む")
+    p_import.add_argument("--date-col", help="日付の列名を直接指定")
+    p_import.add_argument("--amount-col", help="金額の列名を直接指定")
+    p_import.add_argument("--category-col", help="カテゴリの列名を直接指定")
+    p_import.add_argument("--memo-col", help="メモの列名を直接指定")
+    p_import.set_defaults(func=cmd_import)
 
     sub.add_parser("calendar-test", help="カレンダー接続を確認する").set_defaults(
         func=cmd_calendar_test

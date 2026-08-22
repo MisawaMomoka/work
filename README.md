@@ -44,8 +44,8 @@
 > 個人が使える公式APIはほぼ無く、スクレイピングは規約違反かつすぐ壊れます。
 > ここでは連携せず、**「予算 − 使った分 = 今日使っていい額」を毎朝突きつける**方式にしました。
 > 入力の手間は、スマホから1タップで足せる仕組み（後述の「支出を記録」ワークフロー）で吸収します。
-> すでに Zaim / マネーフォワード を使っているなら、そこからCSVを書き出して
-> `data/expenses.csv` に流し込めば同じように動きます。
+> すでに OsidOri / Zaim / マネーフォワード を使っているなら、CSVを書き出して
+> `python -m secretary import` で取り込めます（[手順](docs/import-csv.md)）。
 
 ---
 
@@ -204,6 +204,17 @@ python -m secretary add 2026-08-18 交通費 480
 python -m secretary money        # いまの状況を確認
 ```
 
+**すでに家計簿アプリを使っている場合**は、CSVを書き出して取り込めます
+（OsidOri / Zaim / マネーフォワード ME / 銀行・カードの明細）。
+
+```bash
+python -m secretary import kakeibo.csv --dry-run   # まず中身を確認
+python -m secretary import kakeibo.csv             # 問題なければ取り込む
+```
+
+文字コード・列名・符号の向きは自動で判別します。同じファイルを2回入れても
+二重計上しません。**→ 詳細は [docs/import-csv.md](docs/import-csv.md)**
+
 ### 4. AIに文章を書かせる（任意）
 
 [Anthropic Console](https://console.anthropic.com/) でAPIキーを作り、`ANTHROPIC_API_KEY` に設定します。
@@ -252,6 +263,7 @@ python -m secretary task list
 python -m secretary task add "請求書を送る" --due 2026-09-01 --priority high
 python -m secretary task done 3
 
+python -m secretary import kakeibo.csv --dry-run   # 他アプリのCSVを取り込む
 python -m secretary calendar-test         # カレンダー接続の確認
 python -m secretary line-test             # LINEの設定確認（--send でテスト送信）
 python -m secretary doctor                # 設定の健康診断
@@ -292,10 +304,12 @@ secretary/
     calendar_ics.py    ICS取得・繰り返し予定の展開・空き時間の計算
     tasks.py           tasks.yaml の読み書きと今日ぶんの絞り込み
     money.py           支出集計・予算残り・引き落とし予定
+    importers.py       他の家計簿アプリのCSV取り込み
   notify/
     line.py  slack.py  discord.py  email.py  console.py
 docs/
   calendar-setup.md    カレンダーをつなぐまでの詳細手順
+  import-csv.md        他の家計簿アプリからの取り込み手順
   line-setup.md        LINEで受け取るまでの詳細手順
 scripts/
   Load-Env.ps1         .env を読み込む（PowerShell用）
@@ -340,4 +354,4 @@ pip install pytest && python -m pytest -q
 - 前月比・グラフ付きの月次レポート（毎月1日に送る）
 - 天気と、外出予定がある日の「傘いる/いらない」
 - 予定の前日リマインド（準備が要る会議だけ）
-- Zaim API 連携（公式APIがあるので、`sources/money.py` に読み込み口を足す形で入れられます）
+- Zaim API 連携（公式APIがあるので、CSVを介さず自動化できます）
