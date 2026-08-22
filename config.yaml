@@ -1,0 +1,84 @@
+# ============================================================
+#  AI秘書 設定ファイル
+#  ${ENV_NAME} と書くと環境変数（GitHub Secrets）から読み込みます。
+#  秘密情報（URL・トークン・APIキー）は必ず環境変数側に置いてください。
+# ============================================================
+
+# 生活のベース設定
+profile:
+  timezone: Asia/Tokyo
+  name: ""                 # 呼びかけ名（空なら省略）
+  tone: "丁寧で簡潔な、有能な秘書"
+  work_hours: ["09:00", "18:00"]   # 空き時間の計算に使う
+
+# ---------- スケジュール ----------
+calendar:
+  # Googleカレンダー →「設定と共有」→「カレンダーの非公開URL(iCal形式)」を貼る
+  # Outlook / iCloud の公開ICS URLでもOK。複数指定できます。
+  ics_urls:
+    - "${CALENDAR_ICS_URL}"
+  # 予定と予定のあいだが何分以上あいていたら「空き時間」と呼ぶか
+  free_slot_min_minutes: 45
+
+# ---------- タスク ----------
+tasks:
+  file: data/tasks.yaml
+  # 期限が何日先まで来たら「もうすぐ」として出すか
+  upcoming_days: 3
+
+# ---------- お金 ----------
+money:
+  currency: "円"
+  expenses_file: data/expenses.csv
+
+  # 月の使えるお金（変動費の予算）
+  monthly_budget: 120000
+
+  # カテゴリ別の予算（任意・未設定のカテゴリは全体予算だけで見ます）
+  category_budgets:
+    食費: 45000
+    日用品: 10000
+    交際費: 20000
+    交通費: 12000
+    趣味: 15000
+
+  # 固定費・引き落とし予定（毎月 day 日に落ちるもの）
+  fixed_costs:
+    - {name: "家賃",         amount: 82000, day: 27}
+    - {name: "電気",         amount:  7000, day: 5}
+    - {name: "ガス・水道",   amount:  6000, day: 5}
+    - {name: "携帯・ネット", amount:  9000, day: 10}
+    - {name: "サブスク各種", amount:  3500, day: 15}
+  # 引き落とし何日前から通知するか
+  remind_days_before: 3
+
+# ---------- 通知 ----------
+# 使うものだけ enabled: true にしてください（複数同時OK）
+notify:
+  console:
+    enabled: true          # 手元での確認用。標準出力に出すだけ
+  line:
+    enabled: false
+    channel_access_token: "${LINE_CHANNEL_ACCESS_TOKEN}"
+    to: "${LINE_USER_ID}"  # 自分のユーザーID。空ならブロードキャスト
+  slack:
+    enabled: false
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+  discord:
+    enabled: false
+    webhook_url: "${DISCORD_WEBHOOK_URL}"
+  email:
+    enabled: false
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    username: "${SMTP_USERNAME}"
+    password: "${SMTP_PASSWORD}"   # Gmailは「アプリパスワード」
+    from_addr: "${SMTP_USERNAME}"
+    to_addrs: ["${NOTIFY_EMAIL}"]
+
+# ---------- AI（文章生成） ----------
+ai:
+  enabled: true
+  model: claude-opus-5
+  effort: low              # low / medium / high — 毎朝の要約なら low で十分
+  # APIキーが無い / 失敗した場合は自動でテンプレート出力にフォールバックします

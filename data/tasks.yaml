@@ -1,0 +1,31 @@
+# タスク一覧。ここを書き換えるだけで毎朝の通知に反映されます。
+#
+#   title    : やること（必須）
+#   due      : 期限 YYYY-MM-DD
+#   priority : high / normal / low
+#   project  : 案件名（任意）
+#   repeat   : daily / weekdays / weekends / weekly:mon / monthly:15
+#   done     : true にすると通知から消えます
+#
+# 「- 牛乳を買う」のように文字列だけ書いてもOK（期限なしタスク扱い）。
+
+- title: メールと Slack の未読を片づける
+  repeat: weekdays
+  priority: normal
+
+- title: 今日の作業を1行で記録する
+  repeat: weekdays
+  priority: low
+
+- title: レシートを expenses.csv に入力する
+  repeat: weekly:sun
+  priority: normal
+
+- title: 家計の月次ふりかえり
+  repeat: monthly:1
+  priority: high
+
+- title: （サンプル）請求書を送る
+  due: 2026-09-01
+  priority: high
+  project: 経理

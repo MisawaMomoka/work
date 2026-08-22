@@ -1,0 +1,5 @@
+anthropic>=1.0.0
+PyYAML>=6.0
+icalendar>=6.0
+python-dateutil>=2.9
+requests>=2.32

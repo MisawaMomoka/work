@@ -1,0 +1,57 @@
+name: 支出を記録
+
+# GitHubのスマホアプリ / ブラウザから手動で実行して、その場で家計簿に1行足す。
+# Actions タブ →「支出を記録」→ Run workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      category:
+        description: "カテゴリ（例: 食費）"
+        required: true
+      amount:
+        description: "金額（数字のみ）"
+        required: true
+      memo:
+        description: "メモ"
+        default: ""
+      date:
+        description: "日付 YYYY-MM-DD（空なら今日）"
+        default: ""
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: CSVに追記
+        env:
+          IN_DATE: ${{ inputs.date }}
+          IN_CATEGORY: ${{ inputs.category }}
+          IN_AMOUNT: ${{ inputs.amount }}
+          IN_MEMO: ${{ inputs.memo }}
+        run: |
+          python -m secretary add ${IN_DATE:+"$IN_DATE"} "$IN_CATEGORY" "$IN_AMOUNT" ${IN_MEMO:+"$IN_MEMO"}
+
+      - name: コミットして保存
+        run: |
+          git config user.name  "ai-secretary[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- data/expenses.csv; then
+            echo "変更なし"
+            exit 0
+          fi
+          git add data/expenses.csv
+          git commit -m "支出を記録: ${{ inputs.category }} ${{ inputs.amount }}"
+          git push
