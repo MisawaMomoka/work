@@ -98,3 +98,18 @@ def test_ai_failure_falls_back_to_template(monkeypatch):
     monkeypatch.setattr(anthropic, "Anthropic", boom)
     config = Config({"ai": {"enabled": True, "model": "claude-opus-5"}, "profile": {}})
     assert compose(sample(), config) == render_plain(sample())
+
+
+def test_output_streams_are_forced_to_utf8(monkeypatch):
+    """cp932 のWindowsコンソールに絵文字を出しても落ちないこと。"""
+    import io
+
+    from secretary.__main__ import _force_utf8_output
+
+    stream = io.TextIOWrapper(io.BytesIO(), encoding="cp932")
+    monkeypatch.setattr("sys.stdout", stream)
+    monkeypatch.setattr("sys.stderr", stream)
+
+    _force_utf8_output()
+    stream.write("☀️ 📅 ✅ 💰")   # UTF-8 に切り替わっていなければ UnicodeEncodeError
+    assert stream.encoding == "utf-8"

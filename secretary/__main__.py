@@ -27,6 +27,21 @@ from .sources import money as money_source
 from .sources import tasks as tasks_source
 
 
+def _force_utf8_output() -> None:
+    """絵文字や日本語で落ちないように、出力をUTF-8に固定する。
+
+    Windows でファイルやパイプに流したとき、既定では cp932 になり
+    UnicodeEncodeError で落ちるため。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def _configure_logging(verbose: bool) -> None:
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
@@ -291,6 +306,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _force_utf8_output()
     args = build_parser().parse_args(argv)
     _configure_logging(args.verbose)
     try:

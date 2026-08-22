@@ -51,14 +51,55 @@
 
 ## セットアップ（30分くらい）
 
-### 0. 動かしてみる（設定なしでOK）
+### 0. 手元に持ってきて、動かしてみる（設定なしでOK）
 
-```bash
-pip install -r requirements.txt
+**まずリポジトリをダウンロードし、そのフォルダに移動してから**実行します。
+ホームフォルダのまま実行すると `No such file or directory: 'requirements.txt'` になります。
+
+<details open>
+<summary><b>Windows（PowerShell）</b></summary>
+
+```powershell
+cd ~
+git clone https://github.com/MisawaMomoka/work.git ai-secretary
+cd ai-secretary
+git checkout claude/ai-secretary-work-automation-3kklmy
+
+python -m pip install -r requirements.txt
 python -m secretary brief --dry-run --no-ai
 ```
 
-まだ何も設定していなくても、サンプルのタスクで画面に出力されます。まずここを通してください。
+`git` が入っていない場合は、GitHubのページで **Code → Download ZIP** して展開し、
+展開先フォルダで `cd` してから 2つのコマンドを実行してください。
+</details>
+
+<details>
+<summary><b>macOS / Linux</b></summary>
+
+```bash
+git clone https://github.com/MisawaMomoka/work.git ai-secretary
+cd ai-secretary
+git checkout claude/ai-secretary-work-automation-3kklmy
+
+python3 -m pip install -r requirements.txt
+python3 -m secretary brief --dry-run --no-ai
+```
+</details>
+
+うまくいくと、サンプルのタスクでこう出ます。まずここを通してください。
+
+```
+☀️ 2026年8月22日（土）のブリーフィング
+
+📅 予定
+・予定なし
+...
+```
+
+> **以降のコマンドは、すべてこのフォルダの中で実行します。**
+> 別のフォルダに移動してしまったら `cd ~/ai-secretary` で戻ってください。
+> いまどこにいるか分からなくなったら、PowerShellなら `pwd`、
+> ファイルが揃っているかは `ls` で確認できます（`requirements.txt` が見えていればOK）。
 
 ### 1. カレンダーをつなぐ
 
@@ -264,6 +305,9 @@ pip install pytest && python -m pytest -q
 
 | 症状 | 見るところ |
 |---|---|
+| `No such file or directory: 'requirements.txt'` | リポジトリのフォルダの外にいます。`cd ai-secretary` してから実行 |
+| `No module named secretary` | 同上。`ls` で `secretary` フォルダが見えるところに移動する |
+| `ZoneInfoNotFoundError` / タイムゾーンのエラー | `python -m pip install tzdata`（Windowsのみ必要） |
 | 予定が空のまま | `python -m secretary doctor`。ICS URLが「非公開URL(iCal形式)」か確認 |
 | 通知が来ない | `config.yaml` の `notify.*.enabled` が `true` か。GitHub Secretsの名前が合っているか |
 | LINEに届かない | `python -m secretary line-test` で切り分け。詳細は [docs/line-setup.md](docs/line-setup.md#うまくいかないとき) |

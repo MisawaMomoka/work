@@ -41,3 +41,11 @@ def test_defaults_when_sections_absent(tmp_path):
 def test_missing_file_raises(tmp_path):
     with pytest.raises(ConfigError):
         load_config(tmp_path / "nope.yaml")
+
+
+def test_unknown_timezone_suggests_tzdata(tmp_path):
+    """Windowsでは tzdata が無いと Asia/Tokyo すら引けないので、直し方を出す。"""
+    path = tmp_path / "config.yaml"
+    path.write_text("profile:\n  timezone: Asia/Nowhere\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="pip install tzdata"):
+        _ = load_config(path).tz

@@ -3,3 +3,7 @@ PyYAML>=6.0
 icalendar>=6.0
 python-dateutil>=2.9
 requests>=2.32
+
+# Windows にはタイムゾーンのデータベースが同梱されていないため、
+# zoneinfo が "Asia/Tokyo" を解決できるように別途入れる。
+tzdata>=2024.1; sys_platform == "win32"

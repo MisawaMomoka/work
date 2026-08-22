@@ -11,7 +11,7 @@ import re
 from datetime import time
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 
@@ -57,7 +57,15 @@ class Config:
 
     @property
     def tz(self) -> ZoneInfo:
-        return ZoneInfo(self.profile.get("timezone") or "Asia/Tokyo")
+        name = self.profile.get("timezone") or "Asia/Tokyo"
+        try:
+            return ZoneInfo(name)
+        except ZoneInfoNotFoundError as exc:
+            # Windows には tz データベースが無いので、tzdata が要る
+            raise ConfigError(
+                f"タイムゾーン '{name}' を解決できませんでした。"
+                "次を実行してください: python -m pip install tzdata"
+            ) from exc
 
     @property
     def work_hours(self) -> tuple[time, time]:
