@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from pathlib import Path
 from datetime import date, datetime, timedelta
 
 from . import brief as brief_module
@@ -55,13 +56,24 @@ def _load(args) -> Config:
 
 
 def _mask_url(url: str) -> str:
-    """ログや画面に出すとき、非公開URLの秘密部分を伏せる。"""
-    if not url.startswith(("http://", "https://")):
-        return url
-    head, _, tail = url.rpartition("/")
-    if len(head) > 60:
-        head = head[:40] + "…" + head[-12:]
-    return f"{head}/{tail}" if len(tail) < 30 else f"{head}/…{tail[-12:]}"
+    """画面やログに出すとき、URLの秘密部分を伏せる。
+
+    カレンダーの非公開URLは、パスの途中（private-xxxx）が秘密そのもの。
+    残すのは「どのサービスか」と「拡張子」だけにして、
+    トークンの断片も出さない。
+    """
+    if "://" not in url:
+        return Path(url).name       # ローカルファイルはファイル名だけ
+
+    without_scheme = url.split("://", 1)[1]
+    host, _, path = without_scheme.partition("/")
+    scheme = url.split("://", 1)[0]
+    if not path:
+        return f"{scheme}://{host}"
+
+    last = path.rsplit("/", 1)[-1]
+    suffix = f"/…{Path(last).suffix}" if Path(last).suffix else "/…"
+    return f"{scheme}://{host}/…{suffix}"
 
 
 def _tasks_path(config: Config) -> str:

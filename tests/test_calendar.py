@@ -186,3 +186,43 @@ def test_webcal_scheme_is_converted(monkeypatch):
     monkeypatch.setattr(requests, "get", fake_get)
     fetch_ics("webcal://example.com/cal.ics")
     assert seen["url"] == "https://example.com/cal.ics"
+
+
+# ---------------------------------------------------------------- URLのマスク
+def test_mask_url_hides_the_private_token():
+    """画面に出すURLから、非公開トークンの断片も残さないこと。"""
+    from secretary.__main__ import _mask_url
+
+    secret = "private-aaaabbbbccccddddeeeeffff11112222"
+    url = f"https://calendar.google.com/calendar/ical/me%40gmail.com/{secret}/basic.ics"
+    masked = _mask_url(url)
+
+    assert "calendar.google.com" in masked      # どのサービスかは分かる
+    assert ".ics" in masked                     # 形式も分かる
+    assert "private" not in masked
+    assert "me%40gmail.com" not in masked
+    # トークンの断片が4文字以上残っていないこと
+    for start in range(len(secret) - 4):
+        assert secret[start:start + 5] not in masked
+
+
+def test_mask_url_keeps_local_paths_to_the_filename():
+    from secretary.__main__ import _mask_url
+
+    assert _mask_url("/home/momoi/secret-folder/work.ics") == "work.ics"
+
+
+def test_mask_url_handles_urls_without_a_path():
+    from secretary.__main__ import _mask_url
+
+    assert _mask_url("https://example.com") == "https://example.com"
+
+
+def test_mask_url_hides_webcal_tokens():
+    """iCloud の webcal:// URL もトークンを含むので伏せること。"""
+    from secretary.__main__ import _mask_url
+
+    masked = _mask_url("webcal://p12-caldav.icloud.com/published/2/MTIzNDU2Nzg5SECRET")
+    assert "p12-caldav.icloud.com" in masked
+    assert "MTIzNDU2Nzg5SECRET" not in masked
+    assert "SECRET" not in masked
