@@ -84,14 +84,23 @@ python -m secretary doctor    # つながったか確認
 <details>
 <summary><b>LINE</b>（スマホで受け取りたい人向け・おすすめ）</summary>
 
-LINE Notify は 2025年3月に終了したので、**Messaging API** を使います。
+LINE Notify は 2025年3月末に終了したので、**Messaging API** を使います。
 
-1. [LINE Developers](https://developers.line.biz/) でプロバイダーと **Messaging APIチャネル** を作成
+1. [LINE Developers](https://developers.line.biz/console/) でLINE公式アカウントを作り、Messaging API を有効化
 2. 「Messaging API設定」タブ → **チャネルアクセストークン（長期）** を発行 → `LINE_CHANNEL_ACCESS_TOKEN`
-3. 表示されたQRコードで、自分のLINEからそのBotを友だち追加
-4. `LINE_USER_ID` は空のままでOK（友だち全員に送る broadcast になります。自分だけなら実質これで十分）
+3. 同じタブのQRコードで、自分のLINEからそのBotを友だち追加
+4. `LINE_USER_ID` は**空のままでOK**（友だち全員に送る broadcast になり、自分1人なら実質それで十分）
 
-無料枠は月200通。1日1通なら余裕です。
+設定できたか確認するコマンドがあります。
+
+```bash
+python -m secretary line-test          # トークン・送信先・今月の残り通数を確認
+python -m secretary line-test --send   # 実際に1通送ってみる
+```
+
+無料のコミュニケーションプランで月200通まで。1日1通なら余裕です。
+
+**→ 画面の場所や詰まりどころまで含めた詳細手順は [docs/line-setup.md](docs/line-setup.md)**
 </details>
 
 <details>
@@ -188,6 +197,7 @@ python -m secretary task list
 python -m secretary task add "請求書を送る" --due 2026-09-01 --priority high
 python -m secretary task done 3
 
+python -m secretary line-test             # LINEの設定確認（--send でテスト送信）
 python -m secretary doctor                # 設定の健康診断
 ```
 
@@ -228,6 +238,8 @@ secretary/
     money.py           支出集計・予算残り・引き落とし予定
   notify/
     line.py  slack.py  discord.py  email.py  console.py
+docs/
+  line-setup.md        LINEで受け取るまでの詳細手順
 ```
 
 設計上こだわった点:
@@ -254,6 +266,7 @@ pip install pytest && python -m pytest -q
 |---|---|
 | 予定が空のまま | `python -m secretary doctor`。ICS URLが「非公開URL(iCal形式)」か確認 |
 | 通知が来ない | `config.yaml` の `notify.*.enabled` が `true` か。GitHub Secretsの名前が合っているか |
+| LINEに届かない | `python -m secretary line-test` で切り分け。詳細は [docs/line-setup.md](docs/line-setup.md#うまくいかないとき) |
 | 時間がずれる | cronは**UTC**。JSTから9時間引いた値を書く |
 | 繰り返し予定が出ない | 一部の複雑なRRULE（例外日の個別変更など）は未対応。単純な繰り返しは動きます |
 | AIが使われていない | `ANTHROPIC_API_KEY` を確認。未設定だと自動でテンプレート出力になります |

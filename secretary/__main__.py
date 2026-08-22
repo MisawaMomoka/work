@@ -7,6 +7,7 @@
     python -m secretary task list
     python -m secretary task add "請求書を送る" --due 2026-08-25 --priority high
     python -m secretary task done 3
+    python -m secretary line-test          # LINEの設定を確認 / テスト送信
     python -m secretary doctor             # 設定の健康診断
 """
 
@@ -152,15 +153,66 @@ def cmd_task(args) -> int:
     return 2
 
 
+# ------------------------------------------------------------------ line-test
+def cmd_line_test(args) -> int:
+    """LINEの設定が正しいか、実際にAPIを叩いて確かめる。"""
+    from .notify import line as line_notify
+
+    config = _load(args)
+    settings = (config.notify or {}).get("line") or {}
+
+    if not settings.get("enabled"):
+        print("△ config.yaml の notify.line.enabled が false です（確認は続けます）")
+
+    try:
+        info = line_notify.bot_info(settings)
+    except Exception as exc:
+        print(f"✗ トークンの確認に失敗\n  {exc}", file=sys.stderr)
+        return 1
+
+    print(f"✓ トークン有効: {info.get('displayName')} ({info.get('basicId')})")
+    if info.get("chatMode") == "chat":
+        print("△ 応答モードが「チャット」です。Botからの自動応答が混ざる場合は")
+        print("   LINE Official Account Manager で応答メッセージをオフにしてください。")
+
+    to = (settings.get("to") or "").strip()
+    print(f"  送信先     : {'ユーザーID指定（' + to[:8] + '…）' if to else '友だち全員（broadcast）'}")
+
+    try:
+        usage = line_notify.quota(settings)
+        if usage.get("type") == "limited":
+            print(f"  今月の送信 : {usage.get('used')} / {usage.get('limit')} 通")
+        else:
+            print(f"  今月の送信 : {usage.get('used')} 通（上限なし）")
+    except Exception as exc:
+        print(f"  今月の送信 : 取得できませんでした（{type(exc).__name__}）")
+
+    if not args.send:
+        print("\n実際に1通送るには: python -m secretary line-test --send")
+        return 0
+
+    try:
+        line_notify.send(settings, "🔔 AI秘書のテスト送信", "これが届いていれば設定は完了です。")
+    except Exception as exc:
+        print(f"✗ 送信に失敗\n  {exc}", file=sys.stderr)
+        return 1
+    print("\n✓ テスト送信しました。LINEを確認してください。")
+    return 0
+
+
 # ------------------------------------------------------------------ doctor
 def cmd_doctor(args) -> int:
     config = _load(args)
     print(f"設定ファイル : {config.source}")
     print(f"タイムゾーン : {config.tz}  (現在 {datetime.now(config.tz):%Y-%m-%d %H:%M})")
 
-    urls = [u for u in (config.calendar.get("ics_urls") or []) if u]
-    print(f"カレンダー   : {len(urls)}件のICSを設定" if urls else "カレンダー   : ✗ 未設定")
     problems = 0
+    urls = [u for u in (config.calendar.get("ics_urls") or []) if u]
+    if urls:
+        print(f"カレンダー   : {len(urls)}件のICSを設定")
+    else:
+        problems += 1
+        print("カレンダー   : ✗ 未設定（環境変数 CALENDAR_ICS_URL を設定してください）")
     for url in urls:
         try:
             from .sources.calendar_ics import events_for_day, fetch_ics
@@ -180,6 +232,15 @@ def cmd_doctor(args) -> int:
     print(f"通知チャネル : {', '.join(enabled) if enabled else '✗ なし'}")
     if not enabled:
         problems += 1
+
+    if "line" in enabled:
+        from .notify import line as line_notify
+        try:
+            info = line_notify.bot_info(config.notify["line"])
+            print(f"  ✓ LINE 接続OK: {info.get('displayName')}")
+        except Exception as exc:
+            problems += 1
+            print(f"  ✗ LINE 接続失敗: {exc}")
 
     import os
     has_key = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
@@ -220,6 +281,10 @@ def build_parser() -> argparse.ArgumentParser:
     t_done = task_sub.add_parser("done", help="完了にする")
     t_done.add_argument("index", type=int)
     p_task.set_defaults(func=cmd_task)
+
+    p_line = sub.add_parser("line-test", help="LINEの設定を確認し、任意でテスト送信する")
+    p_line.add_argument("--send", action="store_true", help="実際に1通送ってみる")
+    p_line.set_defaults(func=cmd_line_test)
 
     sub.add_parser("doctor", help="設定の健康診断").set_defaults(func=cmd_doctor)
     return parser
