@@ -264,6 +264,10 @@ python -m secretary task add "請求書を送る" --due 2026-09-01 --priority hi
 python -m secretary task done 3
 
 python -m secretary import kakeibo.csv --dry-run   # 他アプリのCSVを取り込む
+
+python -m secretary threads @zuck         # 指定アカウントの投稿をCSVに書き出す
+python -m secretary threads-test @zuck    # Threadsのトークン・権限の確認
+
 python -m secretary calendar-test         # カレンダー接続の確認
 python -m secretary line-test             # LINEの設定確認（--send でテスト送信）
 python -m secretary doctor                # 設定の健康診断
@@ -291,6 +295,36 @@ python -m secretary doctor                # 設定の健康診断
 
 ---
 
+## おまけ: Threadsの投稿をスプレッドシートにまとめる
+
+「このアカウントの投稿を全部拾って一覧にしたい」ための機能です。
+公式の Threads API から取得し、`data/threads_posts.csv` に書き出します。
+
+```bash
+python -m secretary threads-test @相手      # まず権限の確認
+python -m secretary threads @相手           # CSVに書き出す
+```
+
+```
+id, posted_at,        username, type, text,           permalink
+3   2026-03-05 21:00  zuck      投稿   写真つきの投稿   https://...
+2   2026-02-01 12:30  zuck      返信   返信です         https://...
+```
+
+書き出したCSVは、Googleスプレッドシートの「ファイル → インポート」でそのまま読めます。
+2回目以降は**差分更新**なので、定期的に回しても新しい投稿だけが足されます。
+**Actions → 「Threadsの投稿を書き出す」→ Run workflow** でも実行できます。
+
+> **他人のアカウントを取るには、Metaのアプリ審査（`threads_profile_discovery`）が要ります。**
+> 自分のアカウントなら審査なしで動きます。また相手は公開アカウントで、
+> フォロワーが一定数以上（2025年11月時点で100人）である必要があります。
+> いいね数・表示回数は**自分の投稿でしか取れません**（公式APIの制限）。
+> スクレイピングは使っていません。規約違反になるうえ、すぐ壊れるためです。
+>
+> 手順とつまずきどころ: **[docs/threads-export.md](docs/threads-export.md)**
+
+---
+
 ## 中身
 
 ```
@@ -305,12 +339,14 @@ secretary/
     tasks.py           tasks.yaml の読み書きと今日ぶんの絞り込み
     money.py           支出集計・予算残り・引き落とし予定
     importers.py       他の家計簿アプリのCSV取り込み
+    threads.py         Threadsの投稿取得とCSV書き出し
   notify/
     line.py  slack.py  discord.py  email.py  console.py
 docs/
   calendar-setup.md    カレンダーをつなぐまでの詳細手順
   import-csv.md        他の家計簿アプリからの取り込み手順
   line-setup.md        LINEで受け取るまでの詳細手順
+  threads-export.md    Threadsの投稿をCSVにするまでの詳細手順
 scripts/
   Load-Env.ps1         .env を読み込む（PowerShell用）
   load-env.sh          .env を読み込む（bash用）
@@ -348,6 +384,7 @@ pip install pytest && python -m pytest -q
 | 時間がずれる | cronは**UTC**。JSTから9時間引いた値を書く |
 | 繰り返し予定が出ない | 一部の複雑なRRULE（例外日の個別変更など）は未対応。単純な繰り返しは動きます |
 | AIが使われていない | `ANTHROPIC_API_KEY` を確認。未設定だと自動でテンプレート出力になります |
+| Threadsの投稿が取れない | `python -m secretary threads-test @相手` で切り分け。詳細は [docs/threads-export.md](docs/threads-export.md#うまくいかないとき) |
 
 ## これから足すなら
 

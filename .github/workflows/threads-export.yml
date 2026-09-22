@@ -1,0 +1,67 @@
+name: Threadsの投稿を書き出す
+
+# 指定した公開アカウントの投稿を集めて data/threads_posts.csv を更新する。
+# Actions タブ →「Threadsの投稿を書き出す」→ Run workflow
+#
+# 事前に Secrets へ THREADS_ACCESS_TOKEN を登録してください（手順: docs/threads-export.md）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: "対象アカウント（@つきでもURLでもOK。空なら config.yaml の threads.username）"
+        default: ""
+      since:
+        description: "この日以降だけ YYYY-MM-DD（空なら全期間）"
+        default: ""
+      no_replies:
+        description: "返信を除く"
+        type: boolean
+        default: false
+
+  # 定期実行したい場合は、次の2行のコメントを外してください。
+  # 差分更新なので、毎週回しても新しい投稿だけが足されます。
+  # schedule:
+  #   - cron: "0 21 * * 0"   # UTC 21:00 日曜 = 日本時間 月曜 6:00
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 依存パッケージをインストール
+        run: pip install -r requirements.txt
+
+      - name: 投稿を取得してCSVを更新
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          IN_USERNAME: ${{ inputs.username }}
+          IN_SINCE: ${{ inputs.since }}
+          IN_NO_REPLIES: ${{ inputs.no_replies }}
+        run: |
+          python -m secretary threads \
+            ${IN_USERNAME:+"$IN_USERNAME"} \
+            ${IN_SINCE:+--since "$IN_SINCE"} \
+            ${IN_NO_REPLIES:+$([ "$IN_NO_REPLIES" = "true" ] && echo --no-replies)}
+
+      - name: コミットして保存
+        run: |
+          git config user.name  "ai-secretary[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # 初回はCSVが未追跡なので、先に add してから差分を見る
+          git add data/threads_posts.csv
+          if git diff --cached --quiet -- data/threads_posts.csv; then
+            echo "新しい投稿はありませんでした"
+            exit 0
+          fi
+          git commit -m "Threadsの投稿を更新"
+          git push

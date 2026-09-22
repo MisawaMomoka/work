@@ -85,6 +85,10 @@ class Config:
         return self.section("money")
 
     @property
+    def threads(self) -> dict[str, Any]:
+        return self.section("threads")
+
+    @property
     def notify(self) -> dict[str, Any]:
         return self.section("notify")
 

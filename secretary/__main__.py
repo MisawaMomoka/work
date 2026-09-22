@@ -8,6 +8,8 @@
     python -m secretary task add "請求書を送る" --due 2026-08-25 --priority high
     python -m secretary task done 3
     python -m secretary import kakeibo.csv --dry-run  # 他アプリのCSVを取り込む
+    python -m secretary threads @zuck      # 指定アカウントの投稿をCSVに書き出す
+    python -m secretary threads-test @zuck # Threadsのトークン・権限を確認
     python -m secretary calendar-test      # カレンダー接続を確認
     python -m secretary line-test          # LINEの設定を確認 / テスト送信
     python -m secretary doctor             # 設定の健康診断
@@ -235,6 +237,129 @@ def cmd_import(args) -> int:
     return 0
 
 
+# ------------------------------------------------------------------ threads
+def _threads_settings(config: Config, args):
+    from .sources import threads as threads_source
+
+    settings = threads_source.settings_from(config.threads)
+    username = threads_source.normalize_username(
+        getattr(args, "username", "") or settings.get("username") or ""
+    )
+    return threads_source, settings, username
+
+
+def cmd_threads(args) -> int:
+    """指定した公開アカウントの投稿をまとめてCSVに書き出す。"""
+    config = _load(args)
+    threads_source, settings, username = _threads_settings(config, args)
+
+    if not username:
+        print("エラー: 取得したいアカウントを指定してください。", file=sys.stderr)
+        print("  例: python -m secretary threads @zuck", file=sys.stderr)
+        print("  config.yaml の threads.username に書いておくこともできます。", file=sys.stderr)
+        return 2
+
+    out_file = args.out or settings.get("out_file") or "data/threads_posts.csv"
+    include_replies = settings.get("include_replies", True)
+    if args.no_replies:
+        include_replies = False
+
+    try:
+        since = date.fromisoformat(args.since) if args.since else None
+        until = date.fromisoformat(args.until) if args.until else None
+    except ValueError:
+        print("エラー: 日付は YYYY-MM-DD の形で指定してください（例: --since 2026-01-01）",
+              file=sys.stderr)
+        return 2
+
+    try:
+        result = threads_source.export(
+            settings,
+            username,
+            tz=config.tz,
+            since=since,
+            until=until,
+            include_replies=include_replies,
+            fresh=args.fresh,
+            max_pages=args.max_pages,
+            out_file=out_file,
+        )
+    except threads_source.ThreadsError as exc:
+        print(f"取得できませんでした:\n{exc}", file=sys.stderr)
+        return 1
+
+    name = result.profile.get("name") or ""
+    print(f"@{result.profile.get('username') or username}"
+          f"{'（' + name + '）' if name else ''} から {result.fetched}件を取得しました。")
+    print(f"  うち新規: {result.added}件 / CSVの合計: {result.total}件")
+
+    if args.dry_run:
+        print("\n--dry-run なので書き込みませんでした。先頭5件だけ出します:")
+        for row in result.rows[:5]:
+            text = row["text"].replace("\n", " ")
+            print(f"  {row['posted_at']}  [{row['type']}] {text[:60]}")
+        return 0
+
+    written = threads_source.write_csv(out_file, result.rows)
+    print(f"\n✓ {out_file} に {written}件を書き出しました。")
+    print("  スプレッドシートで開く: Googleスプレッドシート →「ファイル」→「インポート」→ このCSV")
+    return 0
+
+
+def cmd_threads_test(args) -> int:
+    """トークンと権限が足りているかを、実際にAPIを叩いて確かめる。"""
+    config = _load(args)
+    threads_source, settings, username = _threads_settings(config, args)
+
+    token = str(settings.get("access_token") or "").strip()
+    if not token:
+        print("✗ アクセストークンが未設定です。", file=sys.stderr)
+        print("  環境変数 THREADS_ACCESS_TOKEN を設定してください。", file=sys.stderr)
+        print("  手順: docs/threads-export.md", file=sys.stderr)
+        return 1
+    print(f"アクセストークン : 設定あり（{token[:6]}…{len(token)}文字）")
+    print(f"APIの入り口      : {settings.get('api_base')}")
+
+    if not username:
+        print("\n△ 確認したいアカウントが未指定です。")
+        print("  例: python -m secretary threads-test @zuck")
+        return 0
+
+    try:
+        profile = threads_source.lookup_profile(settings, username)
+    except threads_source.ThreadsError as exc:
+        print(f"\n✗ @{username} を引けませんでした\n  {exc}", file=sys.stderr)
+        return 1
+
+    print(f"\n✓ プロフィール取得OK")
+    print(f"  ユーザー名 : @{profile.get('username')}")
+    print(f"  表示名     : {profile.get('name') or '(なし)'}")
+    print(f"  ユーザーID : {profile.get('id')}")
+    if profile.get("is_verified"):
+        print("  認証バッジ : あり")
+
+    try:
+        posts = []
+        for post in threads_source.iter_posts(
+            settings, str(profile["id"]), tz=config.tz, max_pages=1
+        ):
+            posts.append(post)
+    except threads_source.ThreadsError as exc:
+        print(f"\n✗ 投稿一覧を取れませんでした\n  {exc}", file=sys.stderr)
+        print("\n  → プロフィールは引けて投稿だけ取れない場合、"
+              "threads_profile_discovery の審査待ちである可能性が高いです。", file=sys.stderr)
+        return 1
+
+    print(f"\n✓ 投稿の取得OK（1ページ目で {len(posts)}件）")
+    for post in posts[:3]:
+        row = threads_source.to_row(post, config.tz)
+        text = row["text"].replace("\n", " ")
+        print(f"  {row['posted_at']}  [{row['type']}] {text[:50]}")
+
+    print(f"\n準備できています。次: python -m secretary threads @{profile.get('username')}")
+    return 0
+
+
 # ------------------------------------------------------------------ calendar-test
 def cmd_calendar_test(args) -> int:
     """カレンダーが正しくつながっているか、実際に取得して中身を見せる。"""
@@ -365,6 +490,15 @@ def cmd_doctor(args) -> int:
     expenses_file = config.money.get("expenses_file") or "data/expenses.csv"
     print(f"支出ログ     : {len(money_source.load_expenses(expenses_file))}件 ({expenses_file})")
 
+    from .sources import threads as threads_source
+    threads_settings = threads_source.settings_from(config.threads)
+    threads_user = threads_source.normalize_username(threads_settings.get("username") or "")
+    if threads_settings.get("access_token"):
+        target = f"@{threads_user}" if threads_user else "対象アカウント未設定"
+        print(f"Threads      : ✓ トークンあり（{target}）")
+    else:
+        print("Threads      : △ 未設定（使う場合は THREADS_ACCESS_TOKEN / docs/threads-export.md）")
+
     enabled = [n for n, s in (config.notify or {}).items() if isinstance(s, dict) and s.get("enabled")]
     print(f"通知チャネル : {', '.join(enabled) if enabled else '✗ なし'}")
     if not enabled:
@@ -431,6 +565,27 @@ def build_parser() -> argparse.ArgumentParser:
     p_import.add_argument("--category-col", help="カテゴリの列名を直接指定")
     p_import.add_argument("--memo-col", help="メモの列名を直接指定")
     p_import.set_defaults(func=cmd_import)
+
+    p_threads = sub.add_parser(
+        "threads", help="指定した公開アカウントの投稿をまとめてCSVに書き出す"
+    )
+    p_threads.add_argument("username", nargs="?", help="対象アカウント（@つき・URLでもOK）")
+    p_threads.add_argument("--since", help="この日以降の投稿だけ (YYYY-MM-DD)")
+    p_threads.add_argument("--until", help="この日までの投稿だけ (YYYY-MM-DD)")
+    p_threads.add_argument("--out", help="書き出し先のCSV（既定: data/threads_posts.csv）")
+    p_threads.add_argument("--no-replies", action="store_true", help="返信を除く")
+    p_threads.add_argument("--fresh", action="store_true",
+                           help="既存CSVに足さず、取得結果だけで書き直す")
+    p_threads.add_argument("--max-pages", type=int, default=200,
+                           help="たどるページ数の上限（1ページ100件・既定200）")
+    p_threads.add_argument("--dry-run", action="store_true", help="書き込まず、結果だけ見る")
+    p_threads.set_defaults(func=cmd_threads)
+
+    p_threads_test = sub.add_parser(
+        "threads-test", help="Threadsのトークンと権限を確認する"
+    )
+    p_threads_test.add_argument("username", nargs="?", help="確認に使うアカウント")
+    p_threads_test.set_defaults(func=cmd_threads_test)
 
     sub.add_parser("calendar-test", help="カレンダー接続を確認する").set_defaults(
         func=cmd_calendar_test

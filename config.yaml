@@ -52,6 +52,23 @@ money:
   # 引き落とし何日前から通知するか
   remind_days_before: 3
 
+# ---------- Threads（投稿の書き出し） ----------
+# 指定した公開アカウントの投稿をまとめてCSVにする。
+#   python -m secretary threads-test @zuck   # 権限の確認
+#   python -m secretary threads @zuck        # 書き出し
+# トークンの取り方と、Metaのアプリ審査については docs/threads-export.md
+threads:
+  # 取得したい相手のユーザー名（@は付けても付けなくてもOK。コマンドで上書きできる）
+  username: ""
+  access_token: "${THREADS_ACCESS_TOKEN}"
+  out_file: data/threads_posts.csv
+  # 返信も対象にするか（false にすると通常の投稿だけ）
+  include_replies: true
+
+  # 通常は触らなくていい。APIの仕様が変わったときだけ書き換える。
+  api_base: "https://graph.threads.net/v1.0"
+  posts_path: "{user_id}/threads"
+
 # ---------- 通知 ----------
 # 使うものだけ enabled: true にしてください（複数同時OK）
 notify:
