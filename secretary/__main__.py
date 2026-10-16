@@ -10,6 +10,7 @@
     python -m secretary import kakeibo.csv --dry-run  # 他アプリのCSVを取り込む
     python -m secretary calendar-test      # カレンダー接続を確認
     python -m secretary line-test          # LINEの設定を確認 / テスト送信
+    python -m secretary autoreply --dry-run  # 特定の件名のメールへの自動返信（確認だけ）
     python -m secretary doctor             # 設定の健康診断
 """
 
@@ -337,6 +338,31 @@ def cmd_line_test(args) -> int:
     return 0
 
 
+# ------------------------------------------------------------------ autoreply
+def cmd_autoreply(args) -> int:
+    from . import autoreply
+
+    config = _load(args)
+    settings = config.section("autoreply")
+    if not settings.get("enabled") and not args.dry_run:
+        print("autoreply.enabled が false なので何もしません（確認だけなら --dry-run）")
+        return 0
+    try:
+        result = autoreply.run(settings, config.tz, dry_run=args.dry_run)
+    except ValueError as exc:
+        print(f"設定エラー: {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:
+        print(f"✗ Gmail に接続できませんでした: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+    verb = "返信予定" if args.dry_run else "返信"
+    print(f"{verb} {result.replied}件 / 対象外 {result.skipped}件 / 失敗 {result.failed}件"
+          + (f" / 上限超えで次回に回した {result.deferred}件" if result.deferred else ""))
+    if args.dry_run:
+        print("（--dry-run なので送っていません）")
+    return 1 if result.failed else 0
+
+
 # ------------------------------------------------------------------ doctor
 def cmd_doctor(args) -> int:
     config = _load(args)
@@ -439,6 +465,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_line = sub.add_parser("line-test", help="LINEの設定を確認し、任意でテスト送信する")
     p_line.add_argument("--send", action="store_true", help="実際に1通送ってみる")
     p_line.set_defaults(func=cmd_line_test)
+
+    p_reply = sub.add_parser("autoreply", help="特定の件名のメールに自動返信する")
+    p_reply.add_argument("--dry-run", action="store_true", help="送らずに、返信する予定のメールと文面を表示する")
+    p_reply.set_defaults(func=cmd_autoreply)
 
     sub.add_parser("doctor", help="設定の健康診断").set_defaults(func=cmd_doctor)
     return parser

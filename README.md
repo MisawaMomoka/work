@@ -264,6 +264,7 @@ python -m secretary task add "請求書を送る" --due 2026-09-01 --priority hi
 python -m secretary task done 3
 
 python -m secretary import kakeibo.csv --dry-run   # 他アプリのCSVを取り込む
+python -m secretary autoreply --dry-run   # 自動返信の対象と文面を確認（送らない）
 python -m secretary calendar-test         # カレンダー接続の確認
 python -m secretary line-test             # LINEの設定確認（--send でテスト送信）
 python -m secretary doctor                # 設定の健康診断
@@ -272,6 +273,9 @@ python -m secretary doctor                # 設定の健康診断
 **外出先で支出を記録したいとき**は、GitHubアプリ / ブラウザから
 **Actions → 「支出を記録」→ Run workflow** でカテゴリと金額を入れるだけ。
 `data/expenses.csv` に自動でコミットされます。
+
+**特定の件名のメールに自動返信したいとき**は、`config.yaml` の `autoreply` に件名と返信文を書きます。
+GitHub Actions が10分ごとに Gmail を確認して返信します。**→ 手順は [docs/gmail-autoreply.md](docs/gmail-autoreply.md)**
 
 ### タスクの書き方（`data/tasks.yaml`）
 
@@ -300,6 +304,7 @@ secretary/
   pipeline.py          各ソースを集めて1つのブリーフィングにする
   brief.py             文章化（テンプレート + Claude API）
   models.py            データ構造
+  autoreply.py         Gmail の特定の件名のメールへの自動返信
   sources/
     calendar_ics.py    ICS取得・繰り返し予定の展開・空き時間の計算
     tasks.py           tasks.yaml の読み書きと今日ぶんの絞り込み
@@ -309,6 +314,7 @@ secretary/
     line.py  slack.py  discord.py  email.py  console.py
 docs/
   calendar-setup.md    カレンダーをつなぐまでの詳細手順
+  gmail-autoreply.md   メール自動返信の設定手順
   import-csv.md        他の家計簿アプリからの取り込み手順
   line-setup.md        LINEで受け取るまでの詳細手順
 scripts/

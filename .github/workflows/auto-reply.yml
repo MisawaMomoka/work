@@ -1,0 +1,40 @@
+name: メール自動返信
+
+on:
+  schedule:
+    # 10分ごと（GitHub側の混雑で数分〜十数分遅れることがあります）
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "送信せず、返信予定の件数だけ確認する"
+        type: boolean
+        default: false
+
+# 前の実行が終わる前に次が始まって二重返信しないように
+concurrency:
+  group: auto-reply
+  cancel-in-progress: false
+
+jobs:
+  reply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 依存パッケージをインストール
+        run: pip install -r requirements.txt
+
+      # このリポジトリは公開なので、ログには相手のアドレス（伏せ字）とルール名しか出しません
+      - name: 自動返信
+        env:
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: |
+          python -m secretary autoreply ${{ inputs.dry_run && '--dry-run' || '' }}
