@@ -246,6 +246,15 @@ class Mailbox:
                 return part[1]
         return b""
 
+    def fetch_message(self, uid: bytes) -> bytes:
+        typ, data = self.imap.uid("FETCH", uid, "(BODY.PEEK[])")
+        if typ != "OK":
+            raise RuntimeError(f"IMAP の取得に失敗しました: {data!r}")
+        for part in data:
+            if isinstance(part, tuple):
+                return part[1]
+        return b""
+
     def set_label(self, uid: bytes, on: bool) -> None:
         typ, data = self.imap.uid("STORE", uid, "+X-GM-LABELS" if on else "-X-GM-LABELS", f'("{self.label}")')
         if typ != "OK":

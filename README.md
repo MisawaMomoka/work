@@ -265,6 +265,7 @@ python -m secretary task done 3
 
 python -m secretary import kakeibo.csv --dry-run   # 他アプリのCSVを取り込む
 python -m secretary autoreply --dry-run   # 自動返信の対象と文面を確認（送らない）
+python -m secretary apply --dry-run       # 案件メールの判定と応募フォームの回答案を確認（送らない）
 python -m secretary calendar-test         # カレンダー接続の確認
 python -m secretary line-test             # LINEの設定確認（--send でテスト送信）
 python -m secretary doctor                # 設定の健康診断
@@ -276,6 +277,10 @@ python -m secretary doctor                # 設定の健康診断
 
 **特定の件名のメールに自動返信したいとき**は、`config.yaml` の `autoreply` に件名と返信文を書きます。
 GitHub Actions が10分ごとに Gmail を確認して返信します。**→ 手順は [docs/gmail-autoreply.md](docs/gmail-autoreply.md)**
+
+**案件メールに応募したいとき**は、経歴と条件を GitHub Secrets に登録します。ココナラアシスト運営からの
+案件メールを30分ごとに判定し、条件に合えば Google フォームに経歴どおりの回答を入れて応募します。
+**→ 手順は [docs/job-apply.md](docs/job-apply.md)**
 
 ### タスクの書き方（`data/tasks.yaml`）
 
@@ -305,6 +310,8 @@ secretary/
   brief.py             文章化（テンプレート + Claude API）
   models.py            データ構造
   autoreply.py         Gmail の特定の件名のメールへの自動返信
+  job_apply.py         案件メールの判定と応募
+  gforms.py            Google フォームの読み取り・回答の検証・送信
   sources/
     calendar_ics.py    ICS取得・繰り返し予定の展開・空き時間の計算
     tasks.py           tasks.yaml の読み書きと今日ぶんの絞り込み
@@ -315,6 +322,7 @@ secretary/
 docs/
   calendar-setup.md    カレンダーをつなぐまでの詳細手順
   gmail-autoreply.md   メール自動返信の設定手順
+  job-apply.md         案件メールへの自動応募の設定手順
   import-csv.md        他の家計簿アプリからの取り込み手順
   line-setup.md        LINEで受け取るまでの詳細手順
 scripts/

@@ -103,6 +103,28 @@ autoreply:
         ※このメールは自動送信しています。
       # 差し込める項目: {name} 相手の名前 / {email} 相手のアドレス / {subject} 元の件名 / {date} 受信日時
 
+# ---------- 案件メールへの応募（Gmail + Googleフォーム） ----------
+# 案件メールを読み、条件に合えば「▼応募はこちら」のフォームに経歴をもとに回答します。手順: docs/job-apply.md
+# プロフィールと応募条件は個人情報なので、ここには書かず GitHub Secrets（JOB_PROFILE / JOB_CRITERIA）に入れます。
+job_apply:
+  enabled: false
+  username: "${SMTP_USERNAME}"
+  password: "${SMTP_PASSWORD}"
+  from_contains: ["ココナラアシスト"]   # 差出人の名前かアドレスにこれを含むメールだけ見る
+  from_addresses: []                  # 差出人アドレスがわかれば書く（書くとこちらが優先・なりすまし対策）
+  link_marker: "▼応募はこちら"         # この後ろの最初のGoogleフォームのリンクを使う
+  auto_submit: false                  # true = 自動で送信 / false = 回答入りのフォームURLを通知（押すだけ）
+  profile: "${JOB_PROFILE}"           # 経歴（Secrets）。手元では profile_file でも可
+  profile_file: data/profile.local.md
+  criteria: "${JOB_CRITERIA}"         # 応募する条件（Secrets）。手元では criteria_file でも可
+  criteria_file: data/criteria.local.md
+  applicant_email: ""                 # フォームのメール欄に入れるアドレス（空なら username）
+  lookback_days: 2
+  max_per_run: 5
+  done_label: job-checked             # 判定済みのメールに付けるGmailのラベル
+  model: claude-opus-5-5
+  effort: medium
+
 # ---------- AI（文章生成） ----------
 ai:
   enabled: true

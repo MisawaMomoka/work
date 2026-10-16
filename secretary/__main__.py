@@ -11,6 +11,7 @@
     python -m secretary calendar-test      # カレンダー接続を確認
     python -m secretary line-test          # LINEの設定を確認 / テスト送信
     python -m secretary autoreply --dry-run  # 特定の件名のメールへの自動返信（確認だけ）
+    python -m secretary apply --dry-run    # 案件メールを判定し、応募フォームの回答案を作る（送らない）
     python -m secretary doctor             # 設定の健康診断
 """
 
@@ -363,6 +364,29 @@ def cmd_autoreply(args) -> int:
     return 1 if result.failed else 0
 
 
+# ------------------------------------------------------------------ apply
+def cmd_apply(args) -> int:
+    from . import job_apply
+
+    config = _load(args)
+    settings = config.section("job_apply")
+    if not settings.get("enabled") and not args.dry_run:
+        print("job_apply.enabled が false なので何もしません（確認だけなら --dry-run）")
+        return 0
+    try:
+        outcomes = job_apply.run(settings, config.notify, dry_run=args.dry_run)
+    except ValueError as exc:
+        print(f"設定エラー: {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:
+        print(f"✗ Gmail に接続できませんでした: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+    counts = {s: sum(o.status == s for o in outcomes) for s in ("applied", "ready", "skipped", "failed")}
+    print(f"応募 {counts['applied']}件 / 確認待ち {counts['ready']}件 / 見送り {counts['skipped']}件"
+          f" / 失敗 {counts['failed']}件")
+    return 0
+
+
 # ------------------------------------------------------------------ doctor
 def cmd_doctor(args) -> int:
     config = _load(args)
@@ -469,6 +493,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_reply = sub.add_parser("autoreply", help="特定の件名のメールに自動返信する")
     p_reply.add_argument("--dry-run", action="store_true", help="送らずに、返信する予定のメールと文面を表示する")
     p_reply.set_defaults(func=cmd_autoreply)
+
+    p_apply = sub.add_parser("apply", help="案件メールを判定し、条件に合えば応募フォームを送信する")
+    p_apply.add_argument("--dry-run", action="store_true", help="送信も通知もせず、判定と回答案を表示する")
+    p_apply.set_defaults(func=cmd_apply)
 
     sub.add_parser("doctor", help="設定の健康診断").set_defaults(func=cmd_doctor)
     return parser

@@ -1,0 +1,48 @@
+name: 案件メールに応募
+
+on:
+  schedule:
+    # 30分ごと（GitHub側の混雑で遅れることがあります）
+    - cron: "15,45 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "送信も通知もせず、件数だけ確認する"
+        type: boolean
+        default: false
+
+# 前の実行と重なって二重応募しないように
+concurrency:
+  group: job-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 依存パッケージをインストール
+        run: pip install -r requirements.txt
+
+      # このリポジトリは公開なので、ログには件数と結果の種類しか出しません。中身は通知先にだけ届きます
+      - name: 案件メールを判定して応募
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          JOB_PROFILE: ${{ secrets.JOB_PROFILE }}
+          JOB_CRITERIA: ${{ secrets.JOB_CRITERIA }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+        run: |
+          python -m secretary apply ${{ inputs.dry_run && '--dry-run' || '' }}

@@ -6,3 +6,4 @@ venv/
 .pytest_cache/
 config.local.yaml
 data/expenses.local.csv
+data/*.local.md
