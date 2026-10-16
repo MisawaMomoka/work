@@ -111,7 +111,7 @@ job_apply:
   username: "${SMTP_USERNAME}"
   password: "${SMTP_PASSWORD}"
   from_contains: ["ココナラアシスト"]   # 差出人の名前かアドレスにこれを含むメールだけ見る
-  from_addresses: []                  # 差出人アドレスがわかれば書く（書くとこちらが優先・なりすまし対策）
+  from_addresses: ["assist_customer@coconala.com"]  # 差出人アドレス（from_contains より優先・なりすまし対策）
   link_marker: "▼応募はこちら"         # この後ろの最初のGoogleフォームのリンクを使う
   auto_submit: false                  # true = 自動で送信 / false = 回答入りのフォームURLを通知（押すだけ）
   profile: "${JOB_PROFILE}"           # 経歴（Secrets）。手元では profile_file でも可
